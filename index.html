@@ -104,16 +104,17 @@ async function callQuick(action,options={}){
 async function loadBanks(){
  bankMsg.textContent='Loading available UK banks…'; bankList.classList.remove('hidden'); bankList.innerHTML='';
  try{
-  const result=await callQuick('banks'); const banks=(result.aspsps||[]).filter(b=>String(b.country||'').toUpperCase()==='GB');
-  if(!banks.length){bankList.innerHTML='<div class="empty">No sandbox UK banks are currently available for this application.</div>';bankMsg.textContent='';return;}
-  bankMsg.textContent='Choose a bank to start secure authorisation.';
-  bankList.innerHTML=banks.map(b=>`<button class="secondary" style="margin-top:7px;text-align:left" onclick="connectBank(${JSON.stringify(b.name)})">🏦 ${esc(b.name)}</button>`).join('');
+  const result=await callQuick('banks');
+  const banks=(result.aspsps||[]).filter(b=>Array.isArray(b.services)?b.services.includes('AIS'):true);
+  if(!banks.length){bankList.innerHTML='<div class="empty">No sandbox ASPSPs are currently available. We may need to enable the Mock ASPSP in Enable Banking.</div>';bankMsg.textContent='';return;}
+  bankMsg.textContent='Choose a sandbox bank. Mock ASPSP is suitable for our first test.';
+  bankList.innerHTML=banks.map(b=>`<button class="secondary" style="margin-top:7px;text-align:left" onclick='connectBank(${JSON.stringify(b.name)},${JSON.stringify(b.country)})'>🏦 ${esc(b.name)} <span class="muted small">(${esc(b.country||'')})</span></button>`).join('');
  }catch(e){bankMsg.textContent='Could not load banks: '+e.message;}
 }
-async function connectBank(bankName){
+async function connectBank(bankName,bankCountry){
  bankMsg.textContent='Starting secure bank authorisation…';
  try{
-  const result=await callQuick('connect',{method:'POST',body:JSON.stringify({bankName})});
+  const result=await callQuick('connect',{method:'POST',body:JSON.stringify({bankName,bankCountry})});
   if(!result.url) throw new Error('No authorisation URL was returned.');
   sessionStorage.setItem('moneytrack_auth_state',result.state||''); location.href=result.url;
  }catch(e){bankMsg.textContent='Could not start bank connection: '+e.message;}
