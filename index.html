@@ -72,7 +72,8 @@ nav{position:fixed;bottom:0;left:0;right:0;height:72px;background:#fff;border-to
 </div>
 </section>
 
-<section id="accounts" class="screen"><div class="card"><h2>Add account</h2><label>Name</label><input id="an" placeholder="Main current account"><label>Type</label><select id="at"><option value="current">Current</option><option value="savings">Savings</option><option value="investment">Investment</option><option value="pension">Pension</option><option value="credit">Credit card</option><option value="loan">Loan</option><option value="other">Other</option></select><label>Institution</label><input id="ai" placeholder="Optional"><label>Balance (£)</label><input id="ab" type="number" step=".01"><button onclick="addAccount()">Add account</button><p id="amsg" class="muted"></p></div><div class="card"><h2>Your accounts</h2><div id="alist"></div></div></section>
+<section id="accounts" class="screen">
+<div class="card"><h2>Open Banking</h2><p class="muted">Connect a bank securely and import balances and transactions automatically.</p><button onclick="loadBanks()">🏦 Connect bank account</button><p id="bankMsg" class="muted"></p><div id="bankList" class="hidden"></div></div><div class="card"><h2>Add account</h2><label>Name</label><input id="an" placeholder="Main current account"><label>Type</label><select id="at"><option value="current">Current</option><option value="savings">Savings</option><option value="investment">Investment</option><option value="pension">Pension</option><option value="credit">Credit card</option><option value="loan">Loan</option><option value="other">Other</option></select><label>Institution</label><input id="ai" placeholder="Optional"><label>Balance (£)</label><input id="ab" type="number" step=".01"><button onclick="addAccount()">Add account</button><p id="amsg" class="muted"></p></div><div class="card"><h2>Your accounts</h2><div id="alist"></div></div></section>
 
 <section id="transactions" class="screen"><div class="card"><h2>Add transaction</h2><label>Date</label><input id="td" type="date"><label>Description</label><input id="tdesc" placeholder="e.g. Tesco"><label>Type</label><select id="tt"><option value="expense">Expense</option><option value="income">Income</option><option value="investment">Investment</option><option value="transfer">Transfer</option></select><label>Category</label><select id="tc"><option>Food</option><option>Bills</option><option>Transport</option><option>Shopping</option><option>Entertainment</option><option>Housing</option><option>Health</option><option>Salary</option><option>Investment</option><option>Other</option></select><label>Account</label><select id="ta"></select><label>Amount (£)</label><input id="txamount" type="number" step=".01"><button onclick="addTx()">Save transaction</button><p id="tmsg" class="muted"></p></div><div class="card"><h2>History</h2><div id="tlist"></div></div></section>
 
@@ -90,8 +91,43 @@ function authMsg(s){authmsg.textContent=s}
 async function signup(){let r=await sb.auth.signUp({email:email.value.trim(),password:password.value});authMsg(r.error?r.error.message:'Account created. Check your email if confirmation is enabled.')}
 async function login(){let r=await sb.auth.signInWithPassword({email:email.value.trim(),password:password.value});if(r.error)return authMsg(r.error.message);start(r.data.user)}
 async function forgot(){let r=await sb.auth.resetPasswordForEmail(email.value.trim(),{redirectTo:'https://ben11023154-star.github.io/moneytrack/'});authMsg(r.error?r.error.message:'Password reset email sent.')}
-async function start(u){uid=u.id;auth.classList.add('hidden');app.classList.remove('hidden');userLabel.textContent=u.email;td.value=new Date().toISOString().slice(0,10);await load()}
+async function start(u){uid=u.id;auth.classList.add('hidden');app.classList.remove('hidden');userLabel.textContent=u.email;td.value=new Date().toISOString().slice(0,10);await load();handleBankCallback()}
 async function load(){let a=await sb.from('money_accounts').select('*').eq('user_id',uid).order('created_at');accounts=a.data||[];let t=await sb.from('money_transactions').select('*').eq('user_id',uid).order('transaction_date',{ascending:false});tx=t.data||[];let g=await sb.from('money_goals').select('*').eq('user_id',uid).order('created_at',{ascending:false});goals=g.data||[];ta.innerHTML='<option value="">No account</option>'+accounts.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');render()}
+
+const QUICK_API='https://nexrjaddzcatgwojmbfv.supabase.co/functions/v1/quick-api';
+async function callQuick(action,options={}){
+ const {data:{session}}=await sb.auth.getSession(); if(!session) throw new Error('You are not logged in.');
+ const res=await fetch(`${QUICK_API}?action=${encodeURIComponent(action)}`,{...options,headers:{...(options.headers||{}),'Authorization':`Bearer ${session.access_token}`,'Content-Type':'application/json'}});
+ const body=await res.text(); let json; try{json=JSON.parse(body)}catch{throw new Error(body||`HTTP ${res.status}`)}
+ if(!res.ok) throw new Error(json.error||json.message||`HTTP ${res.status}`); return json;
+}
+async function loadBanks(){
+ bankMsg.textContent='Loading available UK banks…'; bankList.classList.remove('hidden'); bankList.innerHTML='';
+ try{
+  const result=await callQuick('banks'); const banks=(result.aspsps||[]).filter(b=>String(b.country||'').toUpperCase()==='GB');
+  if(!banks.length){bankList.innerHTML='<div class="empty">No sandbox UK banks are currently available for this application.</div>';bankMsg.textContent='';return;}
+  bankMsg.textContent='Choose a bank to start secure authorisation.';
+  bankList.innerHTML=banks.map(b=>`<button class="secondary" style="margin-top:7px;text-align:left" onclick="connectBank(${JSON.stringify(b.name)})">🏦 ${esc(b.name)}</button>`).join('');
+ }catch(e){bankMsg.textContent='Could not load banks: '+e.message;}
+}
+async function connectBank(bankName){
+ bankMsg.textContent='Starting secure bank authorisation…';
+ try{
+  const result=await callQuick('connect',{method:'POST',body:JSON.stringify({bankName})});
+  if(!result.url) throw new Error('No authorisation URL was returned.');
+  sessionStorage.setItem('moneytrack_auth_state',result.state||''); location.href=result.url;
+ }catch(e){bankMsg.textContent='Could not start bank connection: '+e.message;}
+}
+function handleBankCallback(){
+ const p=new URLSearchParams(location.search),code=p.get('code'),state=p.get('state'),error=p.get('error');
+ if(!code&&!error)return;
+ if(error){bankMsg.textContent='Bank connection cancelled or failed: '+(p.get('error_description')||error);history.replaceState({},'',location.pathname);return;}
+ const expected=sessionStorage.getItem('moneytrack_auth_state');
+ if(expected&&state&&expected!==state){bankMsg.textContent='Security check failed: authorisation state did not match.';history.replaceState({},'',location.pathname);return;}
+ sessionStorage.removeItem('moneytrack_auth_state');history.replaceState({},'',location.pathname);
+ callQuick('session',{method:'POST',body:JSON.stringify({code})}).then(r=>{bankMsg.textContent='Bank authorisation completed. Session created.';console.log('Enable Banking session',r)}).catch(e=>bankMsg.textContent='Authorisation completed, but the session could not be created: '+e.message);
+}
+
 async function addAccount(){if(!an.value.trim())return amsg.textContent='Enter a name.';let r=await sb.from('money_accounts').insert({user_id:uid,name:an.value.trim(),type:at.value,institution:ai.value.trim(),balance:Number(ab.value)||0});if(r.error)return amsg.textContent=r.error.message;an.value=ai.value=ab.value='';await load()}
 async function delAccount(id){if(!confirm('Delete this account?'))return;await sb.from('money_accounts').delete().eq('id',id).eq('user_id',uid);await load()}
 async function addTx(){if(!tdesc.value.trim()||!txamount.value)return tmsg.textContent='Enter a description and amount.';let r=await sb.from('money_transactions').insert({user_id:uid,account_id:ta.value||null,transaction_date:td.value,description:tdesc.value.trim(),category:tc.value,type:tt.value,amount:Number(txamount.value)});if(r.error)return tmsg.textContent=r.error.message;tdesc.value=txamount.value='';await load()}
