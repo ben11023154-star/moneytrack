@@ -39,7 +39,7 @@ nav{position:fixed;bottom:0;left:0;right:0;height:72px;background:#fff;border-to
 <nav><button class="sel" onclick="show('home',this)"><span class="icon">⌂</span>Overview</button><button onclick="show('accounts',this)"><span class="icon">▣</span>Accounts</button><button onclick="show('transactions',this)"><span class="icon">£</span>Transactions</button><button onclick="show('goals',this)"><span class="icon">🎯</span>Goals</button><button onclick="show('settings',this)"><span class="icon">⚙</span>Settings</button></nav></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
-const sb=supabase.createClient('https://nexrjaddzcatgwojmbfv.supabase.co','sb_publishable_FLhvbRPJb5QMFYGug0R0RA_5oJr90dg');
+const sb=supabase.createClient('https://nexrjaddzcatgwojmbfv.supabase.co','sb_publishable_FLhvbRPJb5QMfGYug0R0RA_5oJr90dg');
 let uid,accounts=[],tx=[],goals=[];
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function authMsg(s){authmsg.textContent=s}
