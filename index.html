@@ -40,7 +40,7 @@ nav{position:fixed;bottom:0;left:0;right:0;height:72px;background:#fff;border-to
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
 const sb=supabase.createClient('https://nexrjaddzcatgwojmbfv.supabase.co','sb_publishable_FLhvbRPJb5QMFYGug0R0RA_5oJr90dg');
-let uid,accounts=[],tx=[],goals=[];const £=n=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(Number(n)||0);
+let uid,accounts=[],tx=[],goals=[];
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function authMsg(s){authmsg.textContent=s}
 async function signup(){let r=await sb.auth.signUp({email:email.value.trim(),password:password.value});authMsg(r.error?r.error.message:'Account created. Check your email if confirmation is enabled.')}
