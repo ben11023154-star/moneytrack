@@ -102,12 +102,25 @@ async function callQuick(action,options={}){
  if(!res.ok) throw new Error(json.error||json.message||`HTTP ${res.status}`); return json;
 }
 async function loadBanks(){
-  bankMsg.textContent='Checking the Enable Banking sandbox…';
+  bankMsg.textContent='Loading the exact sandbox ASPSPs from Enable Banking…';
   bankList.classList.remove('hidden');
   bankList.innerHTML='';
-  // Enable Banking documents the Mock ASPSP as available in all countries.
-  bankMsg.textContent='Sandbox ready. Select the Mock ASPSP to test the connection.';
-  bankList.innerHTML='<button class="secondary" style="margin-top:7px;text-align:left" onclick="connectBank(\'Mock ASPSP\',\'GB\')">🏦 Mock ASPSP <span class="muted small">(Sandbox)</span></button>';
+  try{
+    const result=await callQuick('banks');
+    const banks=result.aspsps||[];
+    if(!banks.length){
+      bankMsg.textContent='Enable Banking returned no ASPSPs for this application.';
+      return;
+    }
+    bankMsg.textContent='Select the ASPSP returned by Enable Banking:';
+    bankList.innerHTML=banks.map(b=>{
+      const name=b.name||'Unnamed ASPSP';
+      const country=b.country||'';
+      return `<button class="secondary" style="margin-top:7px;text-align:left" onclick='connectBank(${JSON.stringify(name)},${JSON.stringify(country)})'>🏦 ${esc(name)} <span class="muted small">(${esc(country)})</span></button>`;
+    }).join('');
+  }catch(e){
+    bankMsg.textContent='Could not load ASPSPs: '+e.message;
+  }
 }
 async function connectBank(bankName,bankCountry){
  bankMsg.textContent='Starting secure bank authorisation…';
